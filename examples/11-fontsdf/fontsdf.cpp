@@ -8,12 +8,15 @@
 
 #include <bgfx/bgfx.h>
 #include <bx/timer.h>
-#include <bx/fpumath.h>
+#include <bx/math.h>
 
 #include "font/font_manager.h"
 #include "font/text_metrics.h"
 #include "font/text_buffer_manager.h"
 #include "imgui/imgui.h"
+
+namespace
+{
 
 TrueTypeHandle loadTtf(FontManager* _fm, const char* _filePath)
 {
@@ -33,13 +36,19 @@ TrueTypeHandle loadTtf(FontManager* _fm, const char* _filePath)
 
 class ExampleFontSDF : public entry::AppI
 {
-	void init(int _argc, char** _argv) BX_OVERRIDE
+public:
+	ExampleFontSDF(const char* _name, const char* _description)
+		: entry::AppI(_name, _description)
+	{
+	}
+
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
-		m_width = 1280;
-		m_height = 720;
-		m_debug = BGFX_DEBUG_TEXT;
+		m_width  = _width;
+		m_height = _height;
+		m_debug = BGFX_DEBUG_NONE;
 		m_reset = BGFX_RESET_VSYNC;
 
 		bgfx::init(args.m_type, args.m_pciId);
@@ -50,11 +59,11 @@ class ExampleFontSDF : public entry::AppI
 
 		// Set view 0 clear state.
 		bgfx::setViewClear(0
-						   , BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH
-						   , 0x303030ff
-						   , 1.0f
-						   , 0
-						   );
+			, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH
+			, 0x303030ff
+			, 1.0f
+			, 0
+			);
 
 		// Imgui.
 		imguiCreate();
@@ -87,16 +96,14 @@ class ExampleFontSDF : public entry::AppI
 
 		m_textBufferManager->appendText(m_scrollableBuffer, m_fontScaled, m_textBegin, m_textEnd);
 
-		m_scrollArea = 0;
 		m_textScroll = 0.0f;
 		m_textRotation = 0.0f;
 		m_textScale = 1.0f;
 		m_textSize = 14.0f;
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
-
 		imguiDestroy();
 
 		BX_FREE(entry::getAllocator(), m_bigText);
@@ -117,36 +124,36 @@ class ExampleFontSDF : public entry::AppI
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
-
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{
 			imguiBeginFrame(m_mouseState.m_mx
-							, m_mouseState.m_my
-							, (m_mouseState.m_buttons[entry::MouseButton::Left  ] ? IMGUI_MBUT_LEFT   : 0)
-							| (m_mouseState.m_buttons[entry::MouseButton::Right ] ? IMGUI_MBUT_RIGHT  : 0)
-							| (m_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
-							, m_mouseState.m_mz
-							, uint16_t(m_width)
-							, uint16_t(m_height)
-							);
+				,  m_mouseState.m_my
+				, (m_mouseState.m_buttons[entry::MouseButton::Left  ] ? IMGUI_MBUT_LEFT   : 0)
+				| (m_mouseState.m_buttons[entry::MouseButton::Right ] ? IMGUI_MBUT_RIGHT  : 0)
+				| (m_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
+				,  m_mouseState.m_mz
+				, uint16_t(m_width)
+				, uint16_t(m_height)
+				);
 
-			const int32_t guiPanelWidth = 250;
-			const int32_t guiPanelHeight = 200;
+			showExampleDialog(this);
 
-			imguiBeginScrollArea("Text Area"
-								 , m_width - guiPanelWidth - 10
-								 , 10
-								 , guiPanelWidth
-								 , guiPanelHeight
-								 , &m_scrollArea
-								 );
-			imguiSeparatorLine();
+			ImGui::SetNextWindowPos(
+				  ImVec2(m_width - m_width / 5.0f - 10.0f, 10.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
+			ImGui::Begin("Settings"
+				, NULL
+				, ImVec2(m_width / 5.0f, m_height / 2.0f)
+				, ImGuiWindowFlags_AlwaysAutoResize
+				);
 
 			bool recomputeVisibleText = false;
-			recomputeVisibleText |= imguiSlider("Number of lines", m_visibleLineCount, 1.0f, 177.0f , 1.0f);
-			if (imguiSlider("Font size", m_textSize, 6.0f, 64.0f , 1.0f) )
+			recomputeVisibleText |= ImGui::SliderFloat("# of lines", &m_visibleLineCount, 1.0f, 177.0f);
+
+			if (ImGui::SliderFloat("Font size", &m_textSize, 6.0f, 64.0f) )
 			{
 				m_fontManager->destroyFont(m_fontScaled);
 				m_fontScaled = m_fontManager->createScaledFontToPixelSize(m_fontSdf, (uint32_t) m_textSize);
@@ -154,9 +161,9 @@ class ExampleFontSDF : public entry::AppI
 				recomputeVisibleText = true;
 			}
 
-			recomputeVisibleText |= imguiSlider("Scroll", m_textScroll, 0.0f, (m_lineCount-m_visibleLineCount) , 1.0f);
-			imguiSlider("Rotate", m_textRotation, 0.0f, bx::kPi*2.0f , 0.1f);
-			recomputeVisibleText |= imguiSlider("Scale", m_textScale, 0.1f, 10.0f , 0.1f);
+			recomputeVisibleText |= ImGui::SliderFloat("Scroll", &m_textScroll, 0.0f, (m_lineCount-m_visibleLineCount));
+			ImGui::SliderFloat("Rotate", &m_textRotation, 0.0f, bx::kPi*2.0f);
+			recomputeVisibleText |= ImGui::SliderFloat("Scale", &m_textScale, 0.1f, 10.0f);
 
 			if (recomputeVisibleText)
 			{
@@ -165,7 +172,7 @@ class ExampleFontSDF : public entry::AppI
 				m_textBufferManager->appendText(m_scrollableBuffer, m_fontScaled, m_textBegin, m_textEnd);
 			}
 
-			imguiEndScrollArea();
+			ImGui::End();
 
 			imguiEndFrame();
 
@@ -176,21 +183,8 @@ class ExampleFontSDF : public entry::AppI
 			// if no other draw calls are submitted to view 0.
 			bgfx::touch(0);
 
-			int64_t now = bx::getHPCounter();
-			static int64_t last = now;
-			const int64_t frameTime = now - last;
-			last = now;
-			const double freq = double(bx::getHPFrequency() );
-			const double toMs = 1000.0 / freq;
-
-			// Use debug font to print32_t information about this example.
-			bgfx::dbgTextClear();
-			bgfx::dbgTextPrintf(0, 1, 0x4f, "bgfx/examples/11-fontsdf");
-			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Use a single distance field font to render text of various size.");
-			bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime) * toMs);
-
-			float at[3]  = { 0, 0, 0.0f };
-			float eye[3] = {0, 0, -1.0f };
+			float at[3]  = { 0.0f, 0.0f,  0.0f };
+			float eye[3] = { 0.0f, 0.0f, -1.0f };
 
 			float view[16];
 			bx::mtxLookAt(view, eye, at);
@@ -200,7 +194,8 @@ class ExampleFontSDF : public entry::AppI
 			// Setup a top-left ortho matrix for screen space drawing.
 			const bgfx::HMD*  hmd  = bgfx::getHMD();
 			const bgfx::Caps* caps = bgfx::getCaps();
-			if (NULL != hmd && 0 != (hmd->flags & BGFX_HMD_RENDERING) )
+			if (NULL != hmd
+			&&  0 != (hmd->flags & BGFX_HMD_RENDERING) )
 			{
 				float proj[16];
 				bx::mtxProj(proj, hmd->eye[0].fov, 0.1f, 100.0f, caps->homogeneousDepth);
@@ -291,11 +286,12 @@ class ExampleFontSDF : public entry::AppI
 	const char* m_textBegin;
 	const char* m_textEnd;
 
-	int32_t m_scrollArea;
 	float m_textScroll;
 	float m_textRotation;
 	float m_textScale;
 	float m_textSize;
 };
 
-ENTRY_IMPLEMENT_MAIN(ExampleFontSDF);
+} // namespace
+
+ENTRY_IMPLEMENT_MAIN(ExampleFontSDF, "11-fontsdf", "Use a single distance field font to render text of various size.");

@@ -9,6 +9,9 @@
 #include "string.h"
 #include "entry/input.h"
 
+namespace
+{
+
 // Position and texture UV vertex
 struct PosUvVertex
 {
@@ -80,16 +83,23 @@ struct PosRGBScaleVertex
 bgfx::VertexDecl PosRGBScaleVertex::ms_decl;
 
 
-class ExampleCubes : public entry::AppI
+class ExampleMapXX : public entry::AppI
 {
-	void init(int _argc, char** _argv) BX_OVERRIDE
+public:
+	ExampleMapXX(const char* _name, const char* _description)
+		: entry::AppI(_name, _description)
+	{
+	}
+
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
-		m_width  = mBaseWidth/2;
-		m_height = mBaseHeight/2;
-		m_debug  = BGFX_DEBUG_TEXT;
-		m_reset  = BGFX_RESET_VSYNC;
+		m_width  = _width;
+		m_height = _height;
+        //m_debug = BGFX_DEBUG_STATS;  // No crash with this
+        m_debug = BGFX_DEBUG_NONE;
+        m_reset  = BGFX_RESET_VSYNC;
 
         // HARD CODE TO OPENGL
 		bgfx::init(bgfx::RendererType::OpenGL, args.m_pciId);
@@ -126,7 +136,7 @@ class ExampleCubes : public entry::AppI
         );
     }
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		// Cleanup.
         bgfx::destroyProgram(m_box1Program);
@@ -141,7 +151,7 @@ class ExampleCubes : public entry::AppI
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset) )
 		{
@@ -206,7 +216,7 @@ class ExampleCubes : public entry::AppI
             bgfx::submit(BOX1_VID, m_box1Program);
         }
 
-        if (!inputGetKeyState(entry::Key::Space))
+        if (inputGetKeyState(entry::Key::Space))
         {
             // Draw a GREEN scaled box (200x200) in the middle of the texture attached to the FBO
             {
@@ -277,4 +287,6 @@ class ExampleCubes : public entry::AppI
     }
 };
 
-ENTRY_IMPLEMENT_MAIN(ExampleCubes);
+} // namespace
+
+ENTRY_IMPLEMENT_MAIN(ExampleMapXX, "xx-map", "Rendering simple static mesh.");

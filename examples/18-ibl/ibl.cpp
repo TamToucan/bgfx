@@ -14,6 +14,9 @@
 #include <bx/readerwriter.h>
 #include <bx/string.h>
 
+namespace
+{
+
 static float s_texelHalf = 0.0f;
 
 struct Uniforms
@@ -453,7 +456,6 @@ struct Settings
 		m_showSpecColorWheel = true;
 		m_metalOrSpec = 0;
 		m_meshSelection = 0;
-		m_crossCubemapPreview = ImguiCubemap::Latlong;
 	}
 
 	float m_envRotCurr;
@@ -468,32 +470,36 @@ struct Settings
 	float m_rgbDiff[3];
 	float m_rgbSpec[3];
 	float m_lod;
-	bool m_doDiffuse;
-	bool m_doSpecular;
-	bool m_doDiffuseIbl;
-	bool m_doSpecularIbl;
-	bool m_showLightColorWheel;
-	bool m_showDiffColorWheel;
-	bool m_showSpecColorWheel;
-	uint8_t m_metalOrSpec;
-	uint8_t m_meshSelection;
-	ImguiCubemap::Enum m_crossCubemapPreview;
+	bool  m_doDiffuse;
+	bool  m_doSpecular;
+	bool  m_doDiffuseIbl;
+	bool  m_doSpecularIbl;
+	bool  m_showLightColorWheel;
+	bool  m_showDiffColorWheel;
+	bool  m_showSpecColorWheel;
+	int32_t m_metalOrSpec;
+	int32_t m_meshSelection;
 };
-
 
 class ExampleIbl : public entry::AppI
 {
-	void init(int _argc, char** _argv) BX_OVERRIDE
+public:
+	ExampleIbl(const char* _name, const char* _description)
+		: entry::AppI(_name, _description)
+	{
+	}
+
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
-		m_width = 1280;
-		m_height = 720;
-		m_debug = BGFX_DEBUG_TEXT;
+		m_width  = _width;
+		m_height = _height;
+		m_debug = BGFX_DEBUG_NONE;
 		m_reset  = 0
-		| BGFX_RESET_VSYNC
-		| BGFX_RESET_MSAA_X16
-		;
+			| BGFX_RESET_VSYNC
+			| BGFX_RESET_MSAA_X16
+			;
 
 		bgfx::init(args.m_type, args.m_pciId);
 		bgfx::reset(m_width, m_height, m_reset);
@@ -503,11 +509,11 @@ class ExampleIbl : public entry::AppI
 
 		// Set views  clear state.
 		bgfx::setViewClear(0
-						   , BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
-						   , 0x303030ff
-						   , 1.0f
-						   , 0
-						   );
+			, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
+			, 0x303030ff
+			, 1.0f
+			, 0
+			);
 
 		// Imgui.
 		imguiCreate();
@@ -534,11 +540,9 @@ class ExampleIbl : public entry::AppI
 
 		m_meshBunny = meshLoad("meshes/bunny.bin");
 		m_meshOrb = meshLoad("meshes/orb.bin");
-
-		m_leftScrollArea = 0;
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		meshUnload(m_meshBunny);
 		meshUnload(m_meshOrb);
@@ -570,126 +574,186 @@ class ExampleIbl : public entry::AppI
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{
 			imguiBeginFrame(m_mouseState.m_mx
-							, m_mouseState.m_my
-							, (m_mouseState.m_buttons[entry::MouseButton::Left  ] ? IMGUI_MBUT_LEFT   : 0)
-							| (m_mouseState.m_buttons[entry::MouseButton::Right ] ? IMGUI_MBUT_RIGHT  : 0)
-							| (m_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
-							, m_mouseState.m_mz
-							, uint16_t(m_width)
-							, uint16_t(m_height)
-							);
+				,  m_mouseState.m_my
+				, (m_mouseState.m_buttons[entry::MouseButton::Left  ] ? IMGUI_MBUT_LEFT   : 0)
+				| (m_mouseState.m_buttons[entry::MouseButton::Right ] ? IMGUI_MBUT_RIGHT  : 0)
+				| (m_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
+				,  m_mouseState.m_mz
+				, uint16_t(m_width)
+				, uint16_t(m_height)
+				);
 
-			static int32_t rightScrollArea = 0;
-			imguiBeginScrollArea("", m_width - 256 - 10, 10, 256, 700, &rightScrollArea);
+			showExampleDialog(this);
 
-			imguiLabel("Environment light:");
-			imguiIndent();
-			imguiBool("IBL Diffuse",  m_settings.m_doDiffuseIbl);
-			imguiBool("IBL Specular", m_settings.m_doSpecularIbl);
-			m_currentLightProbe = LightProbe::Enum(imguiTabs(
-															 uint8_t(m_currentLightProbe)
-															 , true
-															 , ImguiAlign::LeftIndented
-															 , 16
-															 , 2
-															 , 2
-															 , "Bolonga"
-															 , "Kyoto"
-															 ) );
-			if (imguiCube(m_lightProbes[m_currentLightProbe].m_tex, m_settings.m_lod, m_settings.m_crossCubemapPreview, true) )
+			ImGui::SetNextWindowPos(
+				  ImVec2(m_width - m_width / 5.0f - 10.0f, 10.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
+			ImGui::Begin("Settings"
+				, NULL
+				, ImVec2(m_width / 5.0f, m_height - 20.0f)
+				, ImGuiWindowFlags_AlwaysAutoResize
+				);
+			ImGui::PushItemWidth(180.0f);
+
+			ImGui::Text("Environment light:");
+			ImGui::Indent();
+			ImGui::Checkbox("IBL Diffuse",  &m_settings.m_doDiffuseIbl);
+			ImGui::Checkbox("IBL Specular", &m_settings.m_doSpecularIbl);
+
 			{
-				m_settings.m_crossCubemapPreview = ImguiCubemap::Enum( (m_settings.m_crossCubemapPreview+1) % ImguiCubemap::Count);
+				float tabWidth = ImGui::GetContentRegionAvailWidth() / 2.0f;
+				if (ImGui::TabButton("Bolonga", tabWidth, m_currentLightProbe == LightProbe::Bolonga) )
+				{
+					m_currentLightProbe = LightProbe::Bolonga;
+				}
+
+				ImGui::SameLine(0.0f,0.0f);
+
+				if (ImGui::TabButton("Kyoto", tabWidth, m_currentLightProbe == LightProbe::Kyoto) )
+				{
+					m_currentLightProbe = LightProbe::Kyoto;
+				}
 			}
-			imguiSlider("Texture LOD", m_settings.m_lod, 0.0f, 10.1f, 0.1f);
-			imguiUnindent();
 
-			imguiSeparator(8);
-			imguiLabel("Directional light:");
-			imguiIndent();
-			imguiBool("Diffuse",  m_settings.m_doDiffuse);
-			imguiBool("Specular", m_settings.m_doSpecular);
+			ImGui::SliderFloat("Texture LOD", &m_settings.m_lod, 0.0f, 10.1f);
+			ImGui::Unindent();
+
+			ImGui::Separator();
+			ImGui::Text("Directional light:");
+			ImGui::Indent();
+			ImGui::Checkbox("Diffuse",  &m_settings.m_doDiffuse);
+			ImGui::Checkbox("Specular", &m_settings.m_doSpecular);
 			const bool doDirectLighting = m_settings.m_doDiffuse || m_settings.m_doSpecular;
-			imguiSlider("Light direction X", m_settings.m_lightDir[0], -1.0f, 1.0f, 0.1f, doDirectLighting);
-			imguiSlider("Light direction Y", m_settings.m_lightDir[1], -1.0f, 1.0f, 0.1f, doDirectLighting);
-			imguiSlider("Light direction Z", m_settings.m_lightDir[2], -1.0f, 1.0f, 0.1f, doDirectLighting);
-			imguiColorWheel("Color:", m_settings.m_lightCol, m_settings.m_showLightColorWheel, 0.6f, doDirectLighting);
-			imguiUnindent();
+			if (doDirectLighting)
+			{
+				ImGui::SliderFloat("Light direction X", &m_settings.m_lightDir[0], -1.0f, 1.0f);
+				ImGui::SliderFloat("Light direction Y", &m_settings.m_lightDir[1], -1.0f, 1.0f);
+				ImGui::SliderFloat("Light direction Z", &m_settings.m_lightDir[2], -1.0f, 1.0f);
+				ImGui::ColorWheel("Color:", m_settings.m_lightCol, 0.6f);
+			}
+			ImGui::Unindent();
 
-			imguiSeparator(8);
-			imguiLabel("Background:");
-			imguiIndent();
+			ImGui::Separator();
+			ImGui::Text("Background:");
+			ImGui::Indent();
 			{
 				int32_t selection;
-				if      (0.0f == m_settings.m_bgType) { selection = UINT8_C(0); }
-				else if (7.0f == m_settings.m_bgType) { selection = UINT8_C(2); }
-				else                                { selection = UINT8_C(1); }
+				if (0.0f == m_settings.m_bgType)
+				{
+					selection = UINT8_C(0);
+				}
+				else if (7.0f == m_settings.m_bgType)
+				{
+					selection = UINT8_C(2);
+				}
+				else
+				{
+					selection = UINT8_C(1);
+				}
 
-				selection = imguiTabs(
-									  uint8_t(selection)
-									  , true
-									  , ImguiAlign::LeftIndented
-									  , 16
-									  , 2
-									  , 3
-									  , "Skybox"
-									  , "Radiance"
-									  , "Irradiance"
-									  );
-				if      (0 == selection) { m_settings.m_bgType = 0.0f; }
-				else if (2 == selection) { m_settings.m_bgType = 7.0f; }
-				else                     { m_settings.m_bgType = m_settings.m_radianceSlider; }
+				float tabWidth = ImGui::GetContentRegionAvailWidth() / 3.0f;
+				if (ImGui::TabButton("Skybox", tabWidth, selection == 0) )
+				{
+					selection = 0;
+				}
+
+				ImGui::SameLine(0.0f,0.0f);
+				if (ImGui::TabButton("Radiance", tabWidth, selection == 1) )
+				{
+					selection = 1;
+				}
+
+				ImGui::SameLine(0.0f,0.0f);
+				if (ImGui::TabButton("Irradiance", tabWidth, selection == 2) )
+				{
+					selection = 2;
+				}
+
+				if (0 == selection)
+				{
+					m_settings.m_bgType = 0.0f;
+				}
+				else if (2 == selection)
+				{
+					m_settings.m_bgType = 7.0f;
+				}
+				else
+				{
+					m_settings.m_bgType = m_settings.m_radianceSlider;
+				}
+
 				const bool isRadiance = (selection == 1);
-				imguiSlider("Mip level", m_settings.m_radianceSlider, 1.0f, 6.0f, 0.1f, isRadiance);
+				if (isRadiance)
+				{
+					ImGui::SliderFloat("Mip level", &m_settings.m_radianceSlider, 1.0f, 6.0f);
+				}
 			}
-			imguiUnindent();
+			ImGui::Unindent();
 
-			imguiSeparator(8);
-			imguiLabel("Post processing:");
-			imguiIndent();
-			imguiSlider("Exposure", m_settings.m_exposure, -4.0f, 4.0f, 0.1f);
-			imguiUnindent();
+			ImGui::Separator();
+			ImGui::Text("Post processing:");
+			ImGui::Indent();
+			ImGui::SliderFloat("Exposure",& m_settings.m_exposure, -4.0f, 4.0f);
+			ImGui::Unindent();
 
-			imguiSeparator();
+			ImGui::PopItemWidth();
+			ImGui::End();
 
-			imguiEndScrollArea();
+			ImGui::SetNextWindowPos(
+				  ImVec2(10.0f, 260.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
+			ImGui::Begin("Mesh"
+				, NULL
+				, ImVec2(m_width / 5.0f, 450.0f)
+				, ImGuiWindowFlags_AlwaysAutoResize
+				);
 
-			imguiBeginScrollArea("", 10, 70, 256, 636, &m_leftScrollArea);
-
-			imguiLabel("Mesh:");
-			imguiIndent();
-			m_settings.m_meshSelection = uint8_t(imguiChoose(m_settings.m_meshSelection, "Bunny", "Orbs") );
-			imguiUnindent();
+			ImGui::Text("Mesh:");
+			ImGui::Indent();
+			ImGui::RadioButton("Bunny", &m_settings.m_meshSelection, 0);
+			ImGui::RadioButton("Orbs",  &m_settings.m_meshSelection, 1);
+			ImGui::Unindent();
 
 			const bool isBunny = (0 == m_settings.m_meshSelection);
 			if (!isBunny)
 			{
 				m_settings.m_metalOrSpec = 0;
 			}
+			else
+			{
+				ImGui::Separator();
+				ImGui::Text("Workflow:");
+				ImGui::Indent();
+				ImGui::RadioButton("Metalness", &m_settings.m_metalOrSpec, 0);
+				ImGui::RadioButton("Specular", &m_settings.m_metalOrSpec, 1);
+				ImGui::Unindent();
 
-			imguiSeparator(4);
-			imguiLabel("Workflow:");
-			imguiIndent();
-			if (imguiCheck("Metalness", 0 == m_settings.m_metalOrSpec, isBunny) ) { m_settings.m_metalOrSpec = 0; }
-			if (imguiCheck("Specular",  1 == m_settings.m_metalOrSpec, isBunny) ) { m_settings.m_metalOrSpec = 1; }
-			imguiUnindent();
+				ImGui::Separator();
+				ImGui::Text("Material:");
+				ImGui::Indent();
+				ImGui::PushItemWidth(130.0f);
+				ImGui::SliderFloat("Glossiness", &m_settings.m_glossiness, 0.0f, 1.0f);
+				ImGui::SliderFloat(0 == m_settings.m_metalOrSpec ? "Metalness" : "Diffuse - Specular", &m_settings.m_reflectivity, 0.0f, 1.0f);
+				ImGui::PopItemWidth();
+				ImGui::Unindent();
+			}
 
-			imguiSeparator(4);
-			imguiLabel("Material:");
-			imguiIndent();
-			imguiSlider("Glossiness", m_settings.m_glossiness, 0.0f, 1.0f, 0.01f, isBunny);
-			imguiSlider(0 == m_settings.m_metalOrSpec ? "Metalness" : "Diffuse - Specular", m_settings.m_reflectivity, 0.0f, 1.0f, 0.01f, isBunny);
-			imguiUnindent();
 
-			imguiColorWheel("Diffuse:", &m_settings.m_rgbDiff[0], m_settings.m_showDiffColorWheel, 0.7f);
-			imguiSeparator();
-			imguiColorWheel("Specular:", &m_settings.m_rgbSpec[0], m_settings.m_showSpecColorWheel, 0.7f, (1 == m_settings.m_metalOrSpec) && isBunny);
+			ImGui::ColorWheel("Diffuse:", &m_settings.m_rgbDiff[0], 0.7f);
+			ImGui::Separator();
+			if ( (1 == m_settings.m_metalOrSpec) && isBunny )
+			{
+				ImGui::ColorWheel("Specular:", &m_settings.m_rgbSpec[0], 0.7f);
+			}
 
-			imguiEndScrollArea();
+			ImGui::End();
 
 			imguiEndFrame();
 
@@ -712,17 +776,10 @@ class ExampleIbl : public entry::AppI
 			const int64_t frameTime = now - last;
 			last = now;
 			const double freq = double(bx::getHPFrequency() );
-			const double toMs = 1000.0/freq;
 			const float deltaTimeSec = float(double(frameTime)/freq);
 
-			// Use debug font to print information about this example.
-			bgfx::dbgTextClear();
-			bgfx::dbgTextPrintf(0, 1, 0x4f, "bgfx/examples/18-ibl");
-			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Image-based lighting.");
-			bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
-
 			// Camera.
-			const bool mouseOverGui = imguiMouseOverArea();
+			const bool mouseOverGui = ImGui::MouseOverArea();
 			m_mouse.update(float(m_mouseState.m_mx), float(m_mouseState.m_my), m_mouseState.m_mz, m_width, m_height);
 			if (!mouseOverGui)
 			{
@@ -809,16 +866,16 @@ class ExampleIbl : public entry::AppI
 
 						float mtx[16];
 						bx::mtxSRT(mtx
-								   , scale/xend
-								   , scale/xend
-								   , scale/xend
-								   , 0.0f
-								   , 0.0f
-								   , 0.0f
-								   , 0.0f      + (xx/xend)*spacing - (1.0f + (scale-1.0f)*0.5f - 1.0f/xend)
-								   , yAdj/yend + (yy/yend)*spacing - (1.0f + (scale-1.0f)*0.5f - 1.0f/yend)
-								   , 0.0f
-								   );
+							, scale/xend
+							, scale/xend
+							, scale/xend
+							, 0.0f
+							, 0.0f
+							, 0.0f
+							, 0.0f      + (xx/xend)*spacing - (1.0f + (scale-1.0f)*0.5f - 1.0f/xend)
+							, yAdj/yend + (yy/yend)*spacing - (1.0f + (scale-1.0f)*0.5f - 1.0f/yend)
+							, 0.0f
+							);
 
 						m_uniforms.m_glossiness   =        xx*(1.0f/xend);
 						m_uniforms.m_reflectivity = (yend-yy)*(1.0f/yend);
@@ -869,8 +926,8 @@ class ExampleIbl : public entry::AppI
 	Mouse m_mouse;
 
 	Settings m_settings;
-
-	int32_t m_leftScrollArea;
 };
 
-ENTRY_IMPLEMENT_MAIN(ExampleIbl);
+} // namespace
+
+ENTRY_IMPLEMENT_MAIN(ExampleIbl, "18-ibl", "Image-based lighting.");
