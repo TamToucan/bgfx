@@ -134,6 +134,8 @@ public:
             , 1.0f
             , 0
         );
+
+        m_renderBox2 = BOX2_ON_COUNT;
     }
 
 	virtual int shutdown() override
@@ -184,6 +186,13 @@ public:
     bgfx::UniformHandle m_texUniform;
     bgfx::FrameBufferHandle m_FBO;
 
+    // ON  = Number of frames to render box2 for
+    // OFF = Number of frames NOT to render box2 for
+    // NOTE: If OFF=1 then BGFX_CONFIG_MULTITHREADED must be 0 to cause the crash
+    // If OFF > 1 then crash happens regardless of threading.
+    enum { BOX2_ON_COUNT = 1, BOX2_OFF_COUNT = 1 };
+    int m_renderBox2;
+
     void render()
     {
         const bgfx::Caps* caps = bgfx::getCaps();
@@ -216,7 +225,7 @@ public:
             bgfx::submit(BOX1_VID, m_box1Program);
         }
 
-        if (inputGetKeyState(entry::Key::Space))
+        if (m_renderBox2 > 0)
         {
             // Draw a GREEN scaled box (200x200) in the middle of the texture attached to the FBO
             {
@@ -252,6 +261,12 @@ public:
                 bgfx::submit(BOX2_VID, m_box2Program);
             }
         }
+        if (--m_renderBox2 <= -BOX2_OFF_COUNT)
+        {
+            m_renderBox2 = BOX2_ON_COUNT;
+        }
+        //m_renderBox2 = !m_renderBox2;
+
         //
         // Render final texure from FBO to screen
         //
